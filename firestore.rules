@@ -1,0 +1,12 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /coops/{doc} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.data.keys().hasAll(['data', 'updatedAt'])
+        && request.resource.data.data is map
+        && request.resource.size() < 1048576;
+    }
+  }
+}

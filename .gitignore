@@ -1,0 +1,23 @@
+# Local data backups (may contain member PII)
+coop-backup-*.json
+
+# Firebase Hosting auto-generated reserved files
+__/firebase/
+
+# Dependencies
+node_modules/
+
+# Environment / secrets
+.env
+.env.*
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PHSC Coop</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#F3F7F4;--ink:#0F3D3A;--muted:#4A6B66;--field:#FFFFFF;--line:#6B8A83;--err:#A12B2B;--gold:#E8B84A;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--bg:#081D1C;--ink:#E6F0EA;--muted:#9CC4B6;--field:#0F2A28;--line:#5F8B82;--err:#FF9C93;color-scheme:dark}
+}
+:root[data-theme="dark"]{--bg:#081D1C;--ink:#E6F0EA;--muted:#9CC4B6;--field:#0F2A28;--line:#5F8B82;--err:#FF9C93;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:'Satoshi','Figtree',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif}
+[hidden]{display:none!important}
+.login{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);min-height:100%}
+.brand{position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;gap:40px;background:#0F3D3A;color:#F3F7F4;padding:40px 48px}
+.lockup{position:relative;z-index:1;display:flex;align-items:center;gap:12px;font-family:'Satoshi','Figtree',system-ui,sans-serif;font-weight:700;font-size:22px}
+.ring{position:absolute;left:50%;top:40%;width:172%;transform:translate(-50%,-50%)}
+.tagline{position:relative;z-index:1;max-width:420px}
+.tagline h2{margin:0 0 16px;font-family:'Satoshi','Figtree',system-ui,sans-serif;font-weight:700;font-size:44px;line-height:1.08;letter-spacing:-.01em}
+.tagline h2 span{display:block}
+.tagline p{margin:0;font-size:18px;line-height:1.55;color:#CFE3DA}
+.arc,.mint,.core{transform-box:view-box;transform-origin:32px 32px}
+.core{animation:breathe 3.6s ease-in-out infinite}
+.turn .arc{animation:spin 1.2s 1}
+.turn .mint{animation:spin 1.2s .07s 1}
+.loading .arc{animation:spin 1.8s infinite}
+.loading .mint{animation:spin 1.8s .07s infinite}
+.loading .core{animation:land 1.8s infinite}
+@keyframes spin{0%{transform:rotate(0);animation-timing-function:cubic-bezier(.65,0,.3,1)}75%,100%{transform:rotate(360deg)}}
+@keyframes land{0%,72%{transform:scale(1)}82%{transform:scale(1.28)}100%{transform:scale(1)}}
+@keyframes breathe{50%{transform:scale(1.07)}}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes shake{20%,60%{transform:translateX(-7px)}40%,80%{transform:translateX(7px)}}
+.panel{display:flex;align-items:center;justify-content:center;padding:48px 32px}
+.view{width:100%;max-width:380px}
+.enter>*{animation:rise .55s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i,0) * 60ms)}
+h1{margin:0 0 8px;font-family:'Satoshi','Figtree',system-ui,sans-serif;font-weight:700;font-size:40px;line-height:1.1}
+.sub{margin:0 0 32px;font-size:17px;line-height:1.5;color:var(--muted)}
+.group{margin-bottom:16px}
+.lbl{display:block;margin:0 0 8px;font-size:15px;font-weight:600}
+.field{box-sizing:border-box;width:100%;height:48px;padding:0 14px;border:1.5px solid var(--line);border-radius:10px;background:var(--field);font:inherit;font-size:16px;color:var(--ink);transition:border-color .15s}
+.field:focus{border-color:var(--ink)}
+.field[aria-invalid]{border-color:var(--err)}
+.pwrap{position:relative}
+.pwrap .field{padding-right:76px}
+.reveal{position:absolute;right:2px;top:2px;height:44px;padding:0 14px;border:0;border-radius:8px;background:transparent;font:inherit;font-size:15px;font-weight:600;color:var(--ink);cursor:pointer}
+.row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
+.keep{display:flex;align-items:center;gap:10px;min-height:44px;font-size:15px}
+.keep input{width:20px;height:20px;margin:0;accent-color:var(--ink)}
+.link{display:inline-flex;align-items:center;min-height:44px;font-size:15px;font-weight:600;color:var(--ink)}
+.err{margin:0 0 12px;font-size:15px;font-weight:600;color:var(--err)}
+.cta{width:100%;height:52px;border:0;border-radius:10px;background:var(--gold);font:inherit;font-size:17px;font-weight:700;color:#0F3D3A;cursor:pointer;transition:transform .15s,filter .15s}
+.cta:hover{filter:brightness(.95)}
+.cta:active{transform:scale(.99)}
+.cta:disabled{cursor:progress;filter:none;opacity:.85}
+.cta.shake{animation:shake .4s}
+.help{margin:24px 0 0;font-size:15px;line-height:1.5;color:var(--muted)}
+.help a{font-weight:600;color:var(--ink);text-decoration:underline;text-underline-offset:3px}
+.field:focus-visible,.reveal:focus-visible,.keep input:focus-visible,.link:focus-visible,.help a:focus-visible,.cta:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (max-width:860px){
+  .login{grid-template-columns:minmax(0,1fr)}
+  .brand{min-height:150px;padding:24px;gap:24px}
+  .tagline h2{margin-bottom:8px;font-size:26px}
+  .tagline p{font-size:15px}
+  .ring{width:440px;left:84%}
+  .panel{align-items:flex-start;padding:32px 24px 48px}
+  h1{font-size:34px}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="login turn" id="root">
+  <div class="brand">
+    <div class="lockup">
+      <svg width="36" height="36" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path d="M45 21.1A17 17 0 1 0 45 42.9" fill="none" stroke="#F3F7F4" stroke-width="7" stroke-linecap="round"/><circle cx="32" cy="32" r="5.5" fill="#E8B84A"/><circle cx="47.5" cy="32" r="2.2" fill="#8FD0B0"/></svg>
+      <span>PHSC Coop</span>
+    </div>
+    <svg class="ring" viewBox="0 0 64 64" aria-hidden="true" focusable="false"><path class="arc" d="M45 21.1A17 17 0 1 0 45 42.9" fill="none" stroke="#17504B" stroke-width="7" stroke-linecap="round"/><circle class="core" cx="32" cy="32" r="5.5" fill="#E8B84A"/><circle class="mint" cx="47.5" cy="32" r="2.2" fill="#8FD0B0"/></svg>
+    <div class="tagline">
+      <h2><span>Save together.</span><span>Borrow with care.</span></h2>
+      <p>A cooperative built for Contract of Service workers and colleagues, so no one has to face hard times alone.</p>
+    </div>
+  </div>
+  <div class="panel">
+    <form class="view" id="login" novalidate>
+      <h1>Sign in</h1>
+      <p class="sub">Use your PHSC Coop account.</p>
+      <div class="group"><label class="lbl" for="l-email">Email</label><input class="field" id="l-email" name="email" type="email" autocomplete="username"></div>
+      <div class="group"><label class="lbl" for="l-pw">Password</label><div class="pwrap"><input class="field" id="l-pw" name="pw" type="password" autocomplete="current-password"><button class="reveal" type="button" data-for="l-pw" aria-label="Show password">Show</button></div></div>
+      <div class="row"><label class="keep"><input type="checkbox">Keep me signed in</label><a class="link" href="#forgot">Forgot password?</a></div>
+      <p class="err" role="alert" hidden></p>
+      <button class="cta" type="submit">Sign in</button>
+      <p class="help">New to PHSC Coop? <a href="#create-account" data-go="create-account">Create an account</a></p>
+    </form>
+    <form class="view" id="create-account" novalidate hidden>
+      <h1>Create account</h1>
+      <p class="sub">Set up your PHSC Coop account.</p>
+      <div class="group"><label class="lbl" for="c-name">Full name</label><input class="field" id="c-name" name="name" type="text" autocomplete="name"></div>
+      <div class="group"><label class="lbl" for="c-email">Email</label><input class="field" id="c-email" name="email" type="email" autocomplete="email"></div>
+      <div class="group"><label class="lbl" for="c-pw">Password</label><div class="pwrap"><input class="field" id="c-pw" name="pw" type="password" autocomplete="new-password"><button class="reveal" type="button" data-for="c-pw" aria-label="Show password">Show</button></div></div>
+      <div class="group"><label class="lbl" for="c-confirm">Confirm password</label><input class="field" id="c-confirm" name="confirm" type="password" autocomplete="new-password"></div>
+      <p class="err" role="alert" hidden></p>
+      <button class="cta" type="submit">Create account</button>
+      <p class="help">Already have an account? <a href="#login" data-go="login">Sign in</a></p>
+    </form>
+  </div>
+</div>
+<p class="sr" role="status" id="live"></p>
+<script>
+(function () {
+  var root = document.getElementById('root');
+  var live = document.getElementById('live');
+  var views = { 'login': document.getElementById('login'), 'create-account': document.getElementById('create-account') };
+  var titles = { 'login': 'PHSC Coop', 'create-account': 'PHSC Coop' };
+
+  function replay(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+
+  function show(name) {
+    Object.keys(views).forEach(function (k) { views[k].hidden = (k !== name); });
+    var i = 0;
+    [].forEach.call(views[name].children, function (el) { el.style.setProperty('--i', i++); });
+    replay(views[name], 'enter');
+    replay(root, 'turn');
+    document.title = titles[name];
+  }
+
+  document.addEventListener('click', function (e) {
+    var go = e.target.closest('[data-go]');
+    if (go) { e.preventDefault(); show(go.getAttribute('data-go')); return; }
+    var rev = e.target.closest('.reveal');
+    if (rev) {
+      var input = document.getElementById(rev.getAttribute('data-for'));
+      var hide = input.type === 'password';
+      input.type = hide ? 'text' : 'password';
+      rev.textContent = hide ? 'Hide' : 'Show';
+      rev.setAttribute('aria-label', hide ? 'Hide password' : 'Show password');
+    }
+  });
+
+  function fail(form, msg, focusEl) {
+    var err = form.querySelector('.err');
+    err.textContent = msg;
+    err.hidden = false;
+    replay(form.querySelector('.cta'), 'shake');
+    if (focusEl) focusEl.focus();
+  }
+
+  Object.keys(views).forEach(function (name) {
+    var form = views[name];
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var fields = [].slice.call(form.querySelectorAll('.field'));
+      form.querySelector('.err').hidden = true;
+      fields.forEach(function (f) { f.removeAttribute('aria-invalid'); });
+
+      var empty = fields.filter(function (f) { return !f.value.trim(); });
+      if (empty.length) {
+        empty.forEach(function (f) { f.setAttribute('aria-invalid', 'true'); });
+        return fail(form, 'Fill in every field.', empty[0]);
+      }
+      var confirm = form.elements['confirm'];
+      if (confirm && confirm.value !== form.elements['pw'].value) {
+        confirm.setAttribute('aria-invalid', 'true');
+        return fail(form, 'Passwords don\u2019t match.', confirm);
+      }
+
+      var btn = form.querySelector('.cta');
+      var label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = name === 'login' ? 'Signing in' : 'Creating account';
+      live.textContent = btn.textContent;
+      root.classList.add('loading');
+      setTimeout(function () {
+        root.classList.remove('loading');
+        btn.disabled = false;
+        btn.textContent = label;
+        live.textContent = '';
+      }, 2600);
+    });
+  });
+
+  var start = (location.hash || '').replace('#', '');
+  show(views[start] ? start : 'login');
+})();
+</script>
+</body>
+</html>

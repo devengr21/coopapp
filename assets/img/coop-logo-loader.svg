@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="128" height="128" role="img" aria-label="Loading COOP Manager">
+  <style>
+    .ring, .mint, .core { transform-box: view-box; transform-origin: 32px 32px; }
+    .ring { animation: spin 2.2s infinite; }
+    .mint { animation: spin 2.2s 0.07s infinite; }
+    .core { animation: land 2.2s infinite; }
+    @keyframes spin {
+      0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(.65, 0, .3, 1); }
+      75%, 100% { transform: rotate(360deg); }
+    }
+    @keyframes land {
+      0%, 72% { transform: scale(1); }
+      82% { transform: scale(1.28); }
+      100% { transform: scale(1); }
+    }
+    @keyframes breathe { 50% { opacity: .45; } }
+    @media (prefers-reduced-motion: reduce) {
+      .ring, .mint { animation: none; }
+      .core { animation: breathe 2.2s ease-in-out infinite; }
+    }
+  </style>
+  <path class="ring" d="M45 21.1A17 17 0 1 0 45 42.9" fill="none" stroke="#10B981" stroke-width="7" stroke-linecap="round"/>
+  <circle class="core" cx="32" cy="32" r="5.5" fill="#10B981"/>
+  <circle class="mint" cx="47.5" cy="32" r="2.2" fill="#34D399"/>
+</svg>
