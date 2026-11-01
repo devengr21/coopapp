@@ -410,9 +410,10 @@ if (!user) {
         tone: "primary"
       }).then(function (ok) {
         if (!ok) return;
-        store.logout();
-        UI.toast("Signed out.");
-        navigate("/");
+        store.logout().then(function () {
+          UI.toast("Signed out.");
+          navigate("/");
+        });
       });
     });
     app.querySelectorAll("[data-theme-toggle]").forEach(function (button) {

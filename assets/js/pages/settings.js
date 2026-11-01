@@ -75,23 +75,39 @@
           const passwordInput = modalEl.querySelector("#reset-password");
           const password = passwordInput ? passwordInput.value : "";
           const user = store.currentUser();
-          if (user && user.passwordHash && user.salt) {
+          const auth = store.initFirebase();
+          if (auth && auth.currentUser) {
+            if (!password) {
+              if (passwordInput) passwordInput.focus();
+              return;
+            }
+            try {
+              const credential = window.firebase.auth.EmailAuthProvider.credential(auth.currentUser.email, password);
+              await auth.currentUser.reauthenticateWithCredential(credential);
+            } catch (e) {
+              UI.toast("That password is incorrect.", "danger");
+              if (passwordInput) passwordInput.focus();
+              return;
+            }
+          } else if (user && user.passwordHash && user.salt) {
             const valid = await U.verifyPassword(password, user.salt, user.passwordHash);
             if (!valid) {
               if (passwordInput) passwordInput.focus();
               return;
             }
-          } else if (!password) {
+          } else {
             if (passwordInput) passwordInput.focus();
             return;
           }
+          UI.setBusy(button, true, "Resetting…");
           try {
-            COOP.actions.resetSystem();
-            modal.close();
+            await COOP.actions.resetSystem();
+            UI.closeModal();
             UI.toast("All data has been reset.");
             if (COOP.app) COOP.app.refresh();
           } catch (err) {
             UI.toast(err.message, "danger");
+            UI.setBusy(button, false);
           }
         });
       }

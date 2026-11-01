@@ -153,7 +153,9 @@ const listeners = [];
       meta: {
         version: SCHEMA_VERSION,
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
+        adminUids: [],
+        accessUids: []
       },
       setupRequired: false,
       settings: D.defaultSettings(),
@@ -195,6 +197,19 @@ const listeners = [];
 
   function cleanId(value) {
     return cleanText(value, 120).trim();
+  }
+
+  function cleanUidList(value, max) {
+    if (!Array.isArray(value)) return [];
+    const seen = Object.create(null);
+    const out = [];
+    value.forEach(function (item) {
+      const uid = cleanText(item, 128).trim();
+      if (!uid || seen[uid]) return;
+      seen[uid] = true;
+      out.push(uid);
+    });
+    return out.slice(0, max || 100);
   }
 
   function cleanNumber(value, fallback) {
@@ -557,7 +572,9 @@ const listeners = [];
       meta: {
         version: SCHEMA_VERSION,
         createdAt: cleanText(meta.createdAt, 60) || base.meta.createdAt,
-        updatedAt: cleanText(meta.updatedAt, 60) || base.meta.updatedAt
+        updatedAt: cleanText(meta.updatedAt, 60) || base.meta.updatedAt,
+        adminUids: cleanUidList(meta.adminUids, 100),
+        accessUids: cleanUidList(meta.accessUids, 500)
       },
       setupRequired: false,
       settings: normalizeSettings(data.settings),
@@ -641,22 +658,22 @@ const listeners = [];
 
   async function syncWithFirestore() {
     const dbx = initFirestore();
-    if (!dbx) return;
-     try {
-       const doc = await dbx.collection(FIRESTORE_COLLECTION).doc(FIRESTORE_DOC_ID).get();
-       console.log("syncWithFirestore doc.exists=", doc.exists);
-        if (doc.exists) {
-          const remote = doc.data();
-          if (remote && remote.data) {
-            db = normalize(remote.data);
-            console.log("syncWithFirestore loaded remote data");
-          }
+    if (!dbx) return false;
+    try {
+      const doc = await dbx.collection(FIRESTORE_COLLECTION).doc(FIRESTORE_DOC_ID).get();
+      if (doc.exists) {
+        const remote = doc.data();
+        if (remote && remote.data) {
+          db = normalize(remote.data);
         }
-        emit("saved");
-        setupFirestoreListener();
-     } catch (e) {
-       console.error("Firestore sync failed:", e.code, e.message);
-     }
+      }
+      emit("saved");
+      setupFirestoreListener();
+      return true;
+    } catch (e) {
+      console.error("Firestore sync failed:", e.code, e.message);
+      return false;
+    }
   }
 
   function setupFirestoreListener() {
@@ -681,9 +698,28 @@ const listeners = [];
     }
   }
 
+  function refreshAccessLists() {
+    if (!db) return;
+    db.meta = db.meta || {};
+    const adminUids = [];
+    const accessUids = [];
+    (Array.isArray(db.users) ? db.users : []).forEach(function (user) {
+      if (!user || user.active === false) return;
+      const uid = cleanText(user.firebaseUid, 128).trim();
+      if (!uid) return;
+      if (accessUids.indexOf(uid) < 0) accessUids.push(uid);
+      if (user.role === "admin" && adminUids.indexOf(uid) < 0) adminUids.push(uid);
+    });
+    if (adminUids.length) db.meta.adminUids = adminUids.slice(0, 100);
+    else delete db.meta.adminUids;
+    if (accessUids.length) db.meta.accessUids = accessUids.slice(0, 500);
+    else delete db.meta.accessUids;
+  }
+
   async function persist() {
     if (!db) return;
     db.meta.updatedAt = nowISO();
+    refreshAccessLists();
     const fs = initFirestore();
     if (fs) {
       try {
@@ -712,8 +748,7 @@ const listeners = [];
     };
   }
 
-  function readSession() {
-    // First check sessionStorage (persists across page refreshes)
+  function storedSession() {
     try {
       const raw = window.sessionStorage.getItem(SESSION_KEY);
       if (raw) {
@@ -726,7 +761,6 @@ const listeners = [];
         }
       }
     } catch (e) { /* ignore */ }
-    // Then check memory session
     if (memorySession) {
       const expiresAt = Date.parse(memorySession.expiresAt);
       if (isFinite(expiresAt) && expiresAt > Date.now()) {
@@ -734,19 +768,48 @@ const listeners = [];
       }
       memorySession = null;
     }
-    // Then check Firebase Auth (for Firebase auth)
-    const user = firebaseAuth && firebaseAuth.currentUser;
-    if (user) {
-      const data = get();
-      const userInStore = data.users.find(function (u) { return u.email && u.email.toLowerCase() === String(user.email).toLowerCase(); });
-      if (userInStore && userInStore.active !== false) {
-        return {
-          userId: userInStore.id,
-          expiresAt: new Date(Date.now() + SESSION_HOURS * 3600000).toISOString()
-        };
-      }
-    }
     return null;
+  }
+
+  function readSession() {
+    const auth = initFirebase();
+    if (auth) {
+      // Firebase mode: identity is derived from Firebase Auth, never from a
+      // client-writable userId in sessionStorage.
+      const firebaseUser = auth.currentUser;
+      if (firebaseUser) {
+        const data = get();
+        let user = data.users.find(function (u) {
+          return u.firebaseUid && u.firebaseUid === firebaseUser.uid;
+        });
+        if (!user && firebaseUser.email) {
+          user = data.users.find(function (u) {
+            return u.email && u.email.toLowerCase() === String(firebaseUser.email).toLowerCase();
+          });
+        }
+        if (user && user.active !== false) {
+          if (!user.firebaseUid) user.firebaseUid = firebaseUser.uid;
+          return {
+            userId: user.id,
+            at: nowISO(),
+            expiresAt: new Date(Date.now() + SESSION_HOURS * 3600000).toISOString()
+          };
+        }
+        return null;
+      }
+      // No Firebase user: only legacy accounts that have never been linked to
+      // Firebase may continue on a stored session.
+      const legacy = storedSession();
+      if (legacy && legacy.userId) {
+        const user = get().users.find(function (u) { return u.id === legacy.userId; });
+        if (user && user.active !== false && !user.firebaseUid && user.passwordHash && user.salt) {
+          return legacy;
+        }
+      }
+      return null;
+    }
+    // Local-only mode (no Firebase configured): sessionStorage is the identity.
+    return storedSession();
   }
 
   function writeSession(session) {
@@ -818,7 +881,8 @@ const listeners = [];
   async function setup(payload) {
     const data = get();
     const hasUsableAdmin = data.users.some(function (u) {
-      return u.role === "admin" && u.active !== false && u.passwordHash && u.salt;
+      return u.role === "admin" && u.active !== false
+        && (u.firebaseUid || (u.passwordHash && u.salt));
     });
     if (hasUsableAdmin) throw new Error("Setup has already been completed.");
     const name = String(payload.name || "").trim();
@@ -929,18 +993,32 @@ const listeners = [];
     const auth = initFirebase();
     if (auth) {
       let firebaseOk = true;
-      try {
-        await auth.signInWithEmailAndPassword(clean, provided);
-      } catch (e) {
-        firebaseOk = false;
-      }
+       try {
+         await auth.signInWithEmailAndPassword(clean, provided);
+       } catch (e) {
+         firebaseOk = false;
+       }
       if (!firebaseOk) {
-        if (user.passwordHash && user.salt) {
-          const localValid = await U.verifyPassword(provided, user.salt, user.passwordHash);
-          if (!localValid) { recordFailedLogin(clean); throw new Error("Invalid email or password."); }
-        } else {
+        // A Firebase-linked account must never fall back to a local hash: that
+        // would let an old local password bypass a Firebase password reset.
+        if (user.firebaseUid || !user.passwordHash || !user.salt) {
           recordFailedLogin(clean);
           throw new Error("Invalid email or password.");
+        }
+        const localValid = await U.verifyPassword(provided, user.salt, user.passwordHash);
+        if (!localValid) { recordFailedLogin(clean); throw new Error("Invalid email or password."); }
+        // One-time migration for accounts created before Firebase was enabled.
+        try {
+          const migrated = await auth.createUserWithEmailAndPassword(user.email, provided);
+          user.firebaseUid = migrated.user.uid;
+        } catch (e) {
+          try {
+            const existing = await auth.signInWithEmailAndPassword(user.email, provided);
+            user.firebaseUid = existing.user.uid;
+          } catch (e2) {
+            recordFailedLogin(clean);
+            throw new Error("This account needs an administrator to reset its password.");
+          }
         }
       }
       if (auth.currentUser && auth.currentUser.uid) {
@@ -1056,16 +1134,16 @@ const listeners = [];
     return COOP.actions.rejectUser(pendingId);
   }
 
-  function logout() {
+  async function logout() {
     const user = currentUser();
     if (user) {
       const data = get();
       data.audit.unshift(auditEntry("logout", "user", user.id, "Signed out."));
-      persist();
+      try { await persist(); } catch (e) { /* best effort */ }
     }
     writeSession(null);
     if (firebaseAuth) {
-      try { firebaseAuth.signOut(); } catch (e) { /* ignore */ }
+      try { await firebaseAuth.signOut(); } catch (e) { /* ignore */ }
     }
     emit("logout");
   }
@@ -1166,12 +1244,16 @@ const listeners = [];
   }
 
   async function resetAll() {
+    const fs = initFirestore();
+    if (fs) {
+      await fs.collection(FIRESTORE_COLLECTION).doc(FIRESTORE_DOC_ID).delete();
+    }
     db = defaultDB();
+    firestoreLoaded = false;
     writeSession(null);
-    try {
-      // No localStorage to clear - using Firebase
-    } catch (e) { /* ignore */ }
-    await persist();
+    if (firebaseAuth) {
+      try { await firebaseAuth.signOut(); } catch (e) { /* ignore */ }
+    }
     emit("reset");
   }
 
@@ -1218,41 +1300,104 @@ const listeners = [];
     }
   };
 
-  try {
-      load();
-    } catch (e) { /* ignore load errors */ }
-    if (window.firebase && COOP.firebaseConfig) {
-      try {
-        initFirebase();
-        firebaseAuth.onAuthStateChanged(function (firebaseUser) {
-          if (firebaseUser) {
-            const data = get();
-            const user = data.users.find(function (u) { return u.email && u.email.toLowerCase() === String(firebaseUser.email).toLowerCase(); });
-            if (user && user.active !== false) {
-              if (!user.firebaseUid) user.firebaseUid = firebaseUser.uid;
-              writeSession({
-                userId: user.id,
-                at: nowISO(),
-                expiresAt: new Date(Date.now() + SESSION_HOURS * 3600000).toISOString()
-              });
-            }
+  let firstAuthEvent = true;
+  let appStarted = false;
+  let firestoreLoaded = false;
+  let resolveAuthReady = null;
+
+  function authStepComplete() {
+    if (!firstAuthEvent) return;
+    firstAuthEvent = false;
+    if (resolveAuthReady) resolveAuthReady();
+  }
+
+  function applySignedInUser(firebaseUser) {
+    const data = get();
+    let user = data.users.find(function (u) { return u.firebaseUid === firebaseUser.uid; });
+    if (!user) {
+      user = data.users.find(function (u) {
+        return u.email && firebaseUser.email && u.email.toLowerCase() === String(firebaseUser.email).toLowerCase();
+      });
+    }
+    if (!user || user.active === false) {
+      writeSession(null);
+      return false;
+    }
+    if (!user.firebaseUid) user.firebaseUid = firebaseUser.uid;
+    writeSession({
+      userId: user.id,
+      at: nowISO(),
+      expiresAt: new Date(Date.now() + SESSION_HOURS * 3600000).toISOString()
+    });
+    return true;
+  }
+
+  function handleFirebaseUser(firebaseUser) {
+    if (firebaseUser) {
+      if (firstAuthEvent) {
+        // Firestore reads require an authenticated user, so the dataset is
+        // loaded only after Firebase has restored the session.
+        syncWithFirestore().then(function (ok) {
+          firestoreLoaded = !!ok;
+          const signedIn = applySignedInUser(firebaseUser);
+          if (appStarted) {
+            if (firstAuthEvent) authStepComplete();
+            if (signedIn) emit("saved");
           } else {
-            const session = readSession();
-            if (session) {
-              const data = get();
-              const user = data.users.find(function (u) { return u.id === session.userId; });
-              if (user && user.firebaseUid) {
-                writeSession(null);
-                emit("logout");
-              }
-            }
+            authStepComplete();
           }
         });
-      } catch (e) { /* ignore init errors */ }
-      try {
-        await syncWithFirestore();
-      } catch (e) { /* ignore firestore sync errors */ }
+      } else if (!firestoreLoaded) {
+        syncWithFirestore().then(function (ok) {
+          firestoreLoaded = !!ok;
+          if (applySignedInUser(firebaseUser)) emit("saved");
+          else emit("logout");
+        });
+      } else if (applySignedInUser(firebaseUser)) {
+        emit("saved");
+      } else {
+        emit("logout");
+      }
+    } else {
+      const session = storedSession();
+      if (session) {
+        const data = get();
+        const user = data.users.find(function (u) { return u.id === session.userId; });
+        if (user && user.firebaseUid) writeSession(null);
+      }
+      if (firstAuthEvent) authStepComplete();
+      else emit("logout");
     }
+  }
+
+  function startApp() {
+    appStarted = true;
+    firstAuthEvent = false;
     isLoading = false;
     emit("ready");
+  }
+
+  try {
+    load();
+  } catch (e) { /* ignore load errors */ }
+
+  if (window.firebase && COOP.firebaseConfig) {
+    try {
+      initFirebase();
+    } catch (e) { /* ignore init errors */ }
+    if (firebaseAuth) {
+      const ready = new Promise(function (resolve) { resolveAuthReady = resolve; });
+      const timeout = new Promise(function (resolve) { setTimeout(resolve, 5000); });
+      try {
+        firebaseAuth.onAuthStateChanged(handleFirebaseUser);
+      } catch (e) {
+        authStepComplete();
+      }
+      Promise.race([ready, timeout]).then(startApp);
+    } else {
+      startApp();
+    }
+  } else {
+    startApp();
+  }
 })();
